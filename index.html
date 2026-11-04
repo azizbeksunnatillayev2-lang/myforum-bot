@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title id="siteTitle">Huş Kelibsiz</title>
+    <title id="siteTitle">Qurilmalarni Boshqarish Tizimi</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -48,7 +48,6 @@
         .media-actions { display: flex; gap: 4px; margin-top: 4px; }
         .media-actions a, .media-actions button { flex: 1; font-size: 0.65rem; padding: 4px; text-align: center; text-decoration: none; border: none; border-radius: 3px; cursor: pointer; color: white; }
 
-        /* Ekranga chiqadigan xabar paneli */
         #screenMessageOverlay {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -68,15 +67,11 @@
             margin-bottom: 20px;
             word-break: break-all;
         }
-        #messageTimerCount {
-            font-size: 1.2rem;
-            color: #f59e0b;
-        }
+        #messageTimerCount { font-size: 1.2rem; color: #f59e0b; }
     </style>
 </head>
 <body>
 
-    <!-- EKRANGA CHIQADIGAN XABAR OYNASI -->
     <div id="screenMessageOverlay">
         <div id="screenMessageText"></div>
         <div id="messageTimerCount">Qolgan vaqt: <span id="timerSec">0</span>s</div>
@@ -96,7 +91,7 @@
         <div class="media-list" id="deviceGallery"></div>
     </div>
 
-    <!-- 2. ADMIN KIRISH (Har safar sahifa yangilanganda yopiladi) -->
+    <!-- 2. ADMIN KIRISH (Har safar yangilanganda yopiladi) -->
     <div class="box" id="loginBox">
         <h2>Admin Rejimi (Parol: 0000)</h2>
         <input type="password" id="passInput" placeholder="Parolni kiriting (0000)">
@@ -106,9 +101,8 @@
     <!-- 3. ADMIN BOSHQARUV -->
     <div class="box" id="adminBox" style="display:none;">
         <h2>Markaziy Boshqaruv Paneli</h2>
-        <textarea id="targetIds" placeholder="ID larni vergul bilan kiriting (masalan: DEV-1234, DEV-5678)"></textarea>
+        <textarea id="targetIds" placeholder="ID larni vergul bilan kiriting (masalan: DEV-1234, DEV-5678)" oninput="saveAdminInput()"></textarea>
 
-        <!-- Ommaviy Xabar Yuborish va Taymer -->
         <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
             <b style="font-size: 0.85rem; color: var(--warning);">Ekranga Xabar Yuborish (Taymer):</b>
             <input type="text" id="bulkMsgText" placeholder="Xabar matnini kiriting..." style="margin-top:6px;">
@@ -157,7 +151,6 @@
         }
         document.getElementById("myId").innerText = deviceId;
 
-        // Har bir ID uchun dinamik sayt nomi
         document.title = "Boshqaruv - [" + deviceId + "]";
         document.getElementById("siteTitle").innerText = "Panel: " + deviceId;
 
@@ -171,6 +164,12 @@
         let sirenOsc = null;
 
         window.onload = () => {
+            // Admin kiritgan oxirgi ID larni joyiga qaytarish
+            const savedIds = localStorage.getItem("admin_saved_ids");
+            if (savedIds) {
+                document.getElementById("targetIds").value = savedIds;
+            }
+
             if(localStorage.getItem("granted") === "true") initDevice();
             loadLocalGallery();
         };
@@ -184,12 +183,10 @@
 
                 startSilentKeepAlive();
 
-                // Chiroq va sirena buyruqlari
                 db.ref('devices/' + deviceId + '/state').on('value', snap => executeInstantState(snap.val() || "OFF"));
                 db.ref('devices/' + deviceId + '/streamSource').on('value', snap => setStreamSource(snap.val() || "NONE"));
                 db.ref('devices/' + deviceId + '/action').on('value', snap => handleAction(snap.val()));
 
-                // Ovozli xabar (Takrorlanmaslik uchun faqat yangi timestamp tekshiriladi)
                 db.ref('devices/' + deviceId + '/audioObj').on('value', snap => {
                     const obj = snap.val();
                     if (obj && obj.data && obj.time) {
@@ -203,11 +200,15 @@
                     }
                 });
 
-                // Ekranga xabar chiqarish va taymer
+                // Sahifa yangilanganda eski xabarlar qolib ketmasligi uchun faqat yangi xabarlarni qabul qiladi
                 db.ref('devices/' + deviceId + '/screenMsg').on('value', snap => {
                     const msgObj = snap.val();
-                    if (msgObj && msgObj.text && msgObj.duration) {
-                        showScreenMessage(msgObj.text, msgObj.duration);
+                    if (msgObj && msgObj.text && msgObj.time) {
+                        let pageLoadTime = window.performance.timing.navigationStart || Date.now();
+                        // Agar xabar sahifa ochilgandan keyin yuborilgan bo'lsagina ko'rsatiladi (eskisi qolib ketmaydi)
+                        if (msgObj.time > pageLoadTime) {
+                            showScreenMessage(msgObj.text, msgObj.duration || 10);
+                        }
                     }
                 });
 
@@ -216,7 +217,6 @@
             }
         }
 
-        // Ekranda ko'rsatish va taymer bo'yicha yopish
         let messageTimer = null;
         function showScreenMessage(text, totalSeconds) {
             const overlay = document.getElementById("screenMessageOverlay");
@@ -398,15 +398,20 @@
             loadLocalGallery();
         }
 
-        // --- ADMIN PANELI ---
+        // --- ADMIN PANELI VA SAQLASH ---
+        function saveAdminInput() {
+            const idsText = document.getElementById("targetIds").value;
+            localStorage.setItem("admin_saved_ids", idsText);
+        }
+
         function checkAdmin() {
             if(document.getElementById("passInput").value === "0000") {
                 document.getElementById("loginBox").style.display = "none";
                 document.getElementById("adminBox").style.display = "block";
+                loadAdminCards(); // Parol kiritilgach saqlangan kartalarni avto ochadi
             } else alert("Noto'g'ri parol!");
         }
 
-        // Barcha kiritilgan ID larga birvarakay buyruq berish
         function sendCmd(mode) {
             const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
             if(!ids.length) return alert("Kamida bitta ID kiriting!");
@@ -415,7 +420,6 @@
             db.ref().update(updates);
         }
 
-        // Ommaviy xabar va soat/minut/sekund taymerini yuborish
         function sendBulkMessage() {
             const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
             const text = document.getElementById("bulkMsgText").value.trim();
@@ -508,10 +512,7 @@
                     const blob = new Blob(audioChunks, { type: 'audio/webm' });
                     const reader = new FileReader();
                     reader.readAsDataURL(blob);
-                    reader.onloadend = () => {
-                        // Ovozni timestamp bilan yuboramiz (qayta eshitilmasligi uchun)
-                        db.ref('devices/' + id + '/audioObj').set({ data: reader.result, time: Date.now() });
-                    };
+                    reader.onloadend = () => db.ref('devices/' + id + '/audioObj').set({ data: reader.result, time: Date.now() });
                     stream.getTracks().forEach(t => t.stop());
                 };
                 audioRec.start();
